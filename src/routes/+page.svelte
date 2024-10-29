@@ -1,80 +1,87 @@
 <script>
     import { onMount } from "svelte";
+    let { data } = $props();
+    const testTerrainUuid = "5efff2b1-2024-462a-9dc0-df9451febc7f";
+    const testDEMUuid = "3e2c0346-35ef-483f-b6a0-86ab9555305c";
+
+    $effect(() => {
+        if (data.maptilerAPIKey !== undefined) {
+            console.log(data.maptilerAPIKey);
+        }
+    });
+
     onMount(async () => {
         let itowns = await import("itowns");
-
-        // Following guide at http://www.itowns-project.org/itowns/docs/#tutorials/3DTiles-mesh-b3dm
-        // With some updates to account for updates to itowns
+        // define UTM 16N so we can provide the initial bounds (here 'Extent') for the map in UTM 16N
         itowns.CRS.defs(
-            "EPSG:3946",
-            "+proj=lcc +lat_1=45.25 +lat_2=46.75 +lat_0=46 +lon_0=3 +x_0=1700000 +y_0=5200000 +ellps=GRS80" +
-                "+towgs84=0,0,0,0,0,0,0 +units=m +no_defs",
+            "EPSG:32616",
+            "+proj=utm +zone=16 +datum=WGS84 +units=m +no_defs +type=crs",
         );
         let extent = new itowns.Extent(
-            "EPSG:3946",
-            1837816.94334,
-            1847692.32501,
-            5170036.4587,
-            5178412.82698,
+            "EPSG:32616",
+            694186.0191999999806285,
+            693794.1574999999720603,
+            4806866.0176999997347593,
+            4807281.6841000001877546,
         );
-        let cameraCoord = new itowns.Coordinates(
-            "EPSG:3946",
-            1841980,
-            5175682,
-            3000,
-        );
-        let view = new itowns.PlanarView(viewer, extent, {
-            placement: {
-                coord: cameraCoord,
-                heading: 30,
-                range: 4000,
-                tilt: 30,
-            },
-            controls: {
-                rotateSpeed: 20,
-            },
+        let view = new itowns.GlobeView(viewer, extent);
+        // Add a satelite source
+        let tmsSateliteSource = new itowns.TMSSource({
+            name: "maptiler_staelite",
+            // satelite tiles from maptiler
+            url: `https://api.maptiler.com/tiles/satellite-v2/\${z}/\${x}/\${y}.jpg?key=${data.maptilerAPIKey}`,
+            crs: "EPSG:3857", // web mercator
+            format: "image/png",
         });
+        tmsSateliteSource.zoom.max = 40;
 
-        // Add a WMS imagery source
-        let wmsImagerySource = new itowns.WMSSource({
-            extent: extent,
-            name: "ortho_latest",
-            url: "https://imagerie.data.grandlyon.com/wms/grandlyon",
-            version: "1.3.0",
-            crs: "EPSG:3946",
-            format: "image/jpeg",
-        });
-
-        // Add a WMS imagery layer
-        let wmsImageryLayer = new itowns.ColorLayer("wms_imagery", {
+        // Add satelite layer
+        let tmsImageryLayer = new itowns.ColorLayer("satelite", {
             updateStrategy: {
                 type: itowns.STRATEGY_DICHOTOMY,
                 options: {},
             },
-            source: wmsImagerySource,
+            source: tmsSateliteSource,
         });
 
-        view.addLayer(wmsImageryLayer);
+        view.addLayer(tmsImageryLayer);
+
+        // Add a hillshade source
+        let demHillshadeSource = new itowns.TMSSource({
+            name: "dem-hillshade",
+            url: `http://localhost:3012/terrains/${testTerrainUuid}/dems/${testDEMUuid}/tiles/hillshade/\${z}/\${x}/\${y}`,
+            crs: "EPSG:3857", // web mercator - future tileserver output could be in diff CRS
+            format: "image/png",
+        });
+        demHillshadeSource.zoom.max = 40;
+        demHillshadeSource.zoom.min = 15;
+
+        // Add hillshade layer
+        let demHillshadeLayer = new itowns.ColorLayer("hillshade", {
+            updateStrategy: {
+                type: itowns.STRATEGY_DICHOTOMY,
+                options: {},
+            },
+            source: demHillshadeSource,
+        });
+
+        view.addLayer(demHillshadeLayer);
 
         // Add a WMS elevation source
-        let wmsElevationSource = new itowns.WMSSource({
+        let elevationSource = new itowns.TMSSource({
             extent: extent,
-            url: "https://download.data.grandlyon.com/wms/grandlyon",
-            name: "MNT2012_Altitude_10m_CC46",
-            crs: "EPSG:3946",
-            width: 256,
-            format: "image/jpeg",
+            url: `http://localhost:3012/terrains/${testTerrainUuid}/dems/${testDEMUuid}/tiles/terrarium/\${z}/\${x}/\${y}`,
+            name: "test_dem_elevation",
+            crs: "EPSG:3857",
+            format: "image/png",
         });
 
-        // Add a WMS elevation layer
-        let wmsElevationLayer = new itowns.ElevationLayer("wms_elevation", {
-            useColorTextureElevation: true,
-            colorTextureElevationMinZ: 144,
-            colorTextureElevationMaxZ: 622,
-            source: wmsElevationSource,
+        // Add a elevation layer
+        let elevationLayer = new itowns.ElevationLayer("wms_elevation", {
+            source: elevationSource,
         });
 
-        view.addLayer(wmsElevationLayer);
+        view.addLayer(elevationLayer);
     });
     let viewer;
 </script>
