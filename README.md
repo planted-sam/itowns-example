@@ -3,6 +3,7 @@
 ### Step 1
 
 [install nix](https://nixos.org/download/)
+> Nix is a package manager built around reproducibility, been trying it out lately for setting up development enviornments that are reproducable on more machines with less hassle. Feel free to try it out or just do a regular NPM install
 
 ### Step 2
 
